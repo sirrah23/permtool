@@ -1,4 +1,5 @@
 from subprocess import Popen, PIPE
+from functools import reduce
 import os
 import sys
 import click
@@ -88,6 +89,8 @@ def chmod_directory(directory, new_perm, old_perm=None):
             ret = True
     return ret
 
+# TODO: type = click.File(...)
+
 
 def is_file(s):
     return os.path.isfile(s)
@@ -116,7 +119,37 @@ def read(input):
     sys.exit(0)
 
 
+def valid_perm(perm):
+    octals = list("01234567")
+    return (
+        len(perm) == 3 and
+        reduce(lambda x, y: x and y, [digit in octals for digit in perm])
+    )
+
+
+@click.command()
+@click.argument("input", nargs=1)
+@click.argument("perm", nargs=1)
+@click.option("--filter", default=None, help="Permission type to update")
+def write(input, perm, filter):
+    if not valid_perm(perm):
+        click.echo("{} is not avalid UNIX permission", perm)
+        sys.exit(1)
+    if filter and not valid_perm(filter):
+        click.echo("{} is not avalid UNIX permission", filter)
+        sys.exit(1)
+    if is_file(input):
+        success = chmod_file(input, perm, old_perm=filter)
+    elif is_dir(input):
+        success = chmod_directory(input, perm, old_perm=filter)
+    else:
+        click.echo("{} does not exist".format(input))
+        sys.exit(1)
+    sys.exit(0) if success else sys.exit(1)
+
+
 cli.add_command(read)
+cli.add_command(write)
 
 
 cli()
