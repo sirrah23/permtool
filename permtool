@@ -1,5 +1,7 @@
-#!/usr/bin/python3
 from subprocess import Popen, PIPE
+import os
+import sys
+import click
 
 
 def is_err(errbytes):
@@ -85,3 +87,36 @@ def chmod_directory(directory, new_perm, old_perm=None):
         if chmod(curr_file, new_perm):
             ret = True
     return ret
+
+
+def is_file(s):
+    return os.path.isfile(s)
+
+
+def is_dir(s):
+    return os.path.isdir(s)
+
+
+@click.group()
+def cli():
+    pass
+
+
+@click.command()
+@click.argument("input")
+def read(input):
+    if is_file(input):
+        ret = clean_newline(decode(get_stat(input)))
+    elif is_dir(input):
+        ret = "\n".join(cleanup_termout(get_stats(input)))
+    else:
+        click.echo("{} does not exist".format(input))
+        sys.exit(1)
+    click.echo(ret)
+    sys.exit(0)
+
+
+cli.add_command(read)
+
+
+cli()
