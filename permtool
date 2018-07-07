@@ -1,1 +1,87 @@
 #!/usr/bin/python3
+from subprocess import Popen, PIPE
+
+
+def is_err(errbytes):
+    return len(errbytes) > 0
+
+
+def get_stat(filename):
+    p = Popen(
+        ["stat", "-c", "%a %n", filename],
+        stdout=PIPE,
+        stderr=PIPE
+    )
+    output, err = p.communicate()
+    return output if not is_err(err) else None
+
+
+def get_filenames(directory):
+    p = Popen(["ls", directory], stdout=PIPE, stderr=PIPE)
+    output, err = p.communicate()
+    output = output.splitlines()
+    return output if not is_err(err) else None
+
+
+def get_stats(directory):
+    filenames = get_filenames(directory)
+    filenames = filter(None, filenames)
+    return list(map(get_stat, filenames))
+
+
+def decode(b):
+    if not b:
+        return None
+    return b.decode("utf-8")
+
+
+def clean_newline(s):
+    if not s:
+        return None
+    return s.replace("\n", "")
+
+
+def cleanup_termout(term_out):
+    cleaned_out = filter(None, term_out)
+    cleaned_out = map(decode, cleaned_out)
+    cleaned_out = map(clean_newline, cleaned_out)
+    return list(cleaned_out)
+
+
+def is_perm(stat_str, perm):
+    return stat_str[:3] == str(perm)
+
+
+def chmod(filename, perm):
+    p = Popen(
+        ["chmod", str(perm), filename],
+        stdout=PIPE,
+        stderr=PIPE
+    )
+    err = p.communicate()[1]
+    return not is_err(err)
+
+
+def chmod_file(filename, new_perm, old_perm=None):
+    stat = clean_newline(decode(get_stat(filename)))
+    if not stat:
+        return False
+    if old_perm and not is_perm(stat, old_perm):
+        return False
+    return chmod(filename, new_perm)
+
+
+def split_stat_str(stat):
+    return stat.split(" ")
+
+
+def chmod_directory(directory, new_perm, old_perm=None):
+    ret = False
+    stats = map(split_stat_str, cleanup_termout(get_stats(directory)))
+    for stat in stats:
+        curr_perm, curr_file = stat
+        if old_perm and not is_perm(curr_perm, old_perm):
+            continue
+        if chmod(curr_file, new_perm):
+            ret = True
+    return ret
